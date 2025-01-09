@@ -1,65 +1,52 @@
----
-title: "Absolutely Use that beePather"
-author: "Babur Erdem"
-date: '2023-06-10'
-output: html_document
----
 
-```{r}
+#title: "Absolutely Use that beePather"
+#author: "Babur Erdem"
+#date: '2023-06-10'
+#output: html_document
+
 library(plotrix) 
 library(dplyr)
 library(ggplot2)
 library(pracma)
 library(writexl)
-```
-
 
 
 # Define variables for the experiment.
 
-VideoName <- readline(as.character("Write the name of the experiment video: "))
+VideoName <- readline(as.character("Experiment video name (csv file): "))
+CornerCoords <- readline(as.character("Corner coorcidates file name (txt file): "))
 
-IndVar <- readline(as.array("Define the independent variables: "))
-IndVars <- as.vector((scan(text = IndVar, what = "", sep = ",")))
-IndVars <- c(IndVars)
-
-fps <- readline(as.character("Indicate the fps value of the experiment video: "))
-fps <- as.numeric(fps)
-
-SamplingRate <- readline(as.character("Define the desired downsampling rate (per sec): "))
-SamplingRate <- as.numeric(SamplingRate)
-
-
+start_hour <- readline(as.character("Start hour: "))
+start_hour <- as.numeric(start_hour)
+start_min <- readline(as.character("Start min: "))
+start_min <- as.numeric(start_min)
+ProcessingFps <- readline(as.character("Freq of pulling coordinates (fps probably 3): "))
+ProcessingFps <- as.numeric(ProcessingFps)
+threshold <-  readline(as.character("Threshold for tracking bee (.98 is best): "))
+threshold <- as.numeric(threshold)
 
 
-```{r}
-VideoName <- c("22.10.12_450mM_filtered")
-CornerCoords <- c("ArenaCorners_coordinates.txt")
-start_hour = 0
-start_min = 11
 length_hours = 24.05
-ProcessingFps = 3
-threshold =  .98
 arena_perimeter =175*4     #in mm
 PlotResolution = 5     #in minutes
 ImmobilityThreshold = 1 #Animals would be considered motionless below that speed (mm/s). Default is 0.5 mm/s
-```
 
-```{r}
+
+######
 begin_frame = ProcessingFps*(start_min*60)+(60*60*start_hour)
 end_frame = begin_frame+(ProcessingFps*60*60*length_hours)
 df_bee0 <- read.csv(paste0(VideoName, ".csv", sep = ""), header = T, row.names = NULL, sep="\t")
 
-CorCoord <- read.csv(paste(CornerCoords, sep = ""), header = T, row.names = NULL, sep="\t")
+CorCoord <- read.csv(paste(CornerCoords, ".txt", sep = ""), header = T, row.names = NULL, sep="\t")
 
 df_bee_begin <- subset(df_bee0, FrameNo > begin_frame)
 df_bee_end <- subset(df_bee_begin, FrameNo < end_frame)
 df_bee <- df_bee_end[,-1]
 df_bee[df_bee==-1] <- NA
 colnames(df_bee) <- colnames(df_bee)[1:ncol(df_bee)] 
-```
 
-```{r}
+
+######
 # Measurement converter
 
 a = CorCoord$left_bottom_y[CorCoord$VideoName==VideoName]-
@@ -73,9 +60,8 @@ d = CorCoord$right_bottom_x[CorCoord$VideoName==VideoName] -
 scaleval = CorCoord$scale[CorCoord$VideoName==VideoName]
 ConvFactor <- ((a+b+c+d)*scaleval)/arena_perimeter
 
-```
 
-```{r}
+######
 beeNum = ncol(df_bee)/2
 
 #par(mfrow=c(5,5))
@@ -106,6 +92,8 @@ polygon(x = c((CorCoord$left_bottom_x[CorCoord$VideoName==VideoName]*scaleval),
                (CorCoord$right_bottom_y[CorCoord$VideoName==VideoName]*scaleval)), 
                 col=NA, lwd=.1, border="blue")
 
+
+
 plot((CorCoord$food_x[CorCoord$VideoName==VideoName]*scaleval),
      (CorCoord$food_y[CorCoord$VideoName==VideoName]*scaleval), type = "p", axes=F, frame = T, xlab = "", ylab = "", main = i, cex=5,col="orange", pch=19, xlim = c(500,4000), ylim = c(400,3000))
 par(new=TRUE)
@@ -126,9 +114,8 @@ polygon(x = c((CorCoord$left_bottom_x[CorCoord$VideoName==VideoName]*scaleval),
 i=i+1
 }
 
-```
 
-```{r}
+######
 dr=1
 DetectRatio <- c()
 while (dr <= ((ncol(df_bee))/2)){
@@ -136,9 +123,9 @@ DetectRat <- 1-(length(df_bee[,(2*dr)][df_bee[,(2*dr)] =="None"]))/(length(df_be
 DetectRatio <- append(DetectRatio, DetectRat)
 dr=dr+1
 }
-```
 
-```{r}
+
+######
 plot_table <- data.frame(matrix(ncol=3, nrow = 0))
 average_speed <- c()
 stdev_speed <- c()
@@ -217,9 +204,8 @@ colnames(speed_table) <- c("Ind", "AvgSpeed_mm/s", "StDevSpeed")
 displacement_table <- data.frame(c(1:((ncol(df_bee))/2)),(displacement))
 colnames(displacement_table) <- c("Ind", "Displacement_mm")
 
-```
 
-```{r}
+######
 write_xlsx(
 data.frame(
   
@@ -234,9 +220,9 @@ MobilityRatio=(1-immobility_ratio),
 DetectRatio=DetectRatio),
 
 paste(VideoName,"_OutputData.xlsx"))
-```
 
-```{r}
+
+######
 #plot_tableN<-plot_table[plot_table$Ind==1,]
 
 plot_table$Ind<-as.character(plot_table$Ind)
@@ -265,14 +251,10 @@ panel.background = element_rect(fill = "white")
   ylab(paste("Speed (mm/", PlotResolution, "min)", sep = ""))+
   facet_wrap(~Ind)
 
-SpeedPlot
-```
-
-```{r}
 ggsave(SpeedPlot, file=paste(VideoName,"_SpeedPlots.jpg",sep=""), width= 9, height=6, dpi=300)
-```
 
-```{r}
+
+######
 mobility_table$MobilityRat <- as.numeric(mobility_table$MobilityRat)
 mobility_table$Ind <- as.character(mobility_table$Ind)
 mobility_table$Ind <- sprintf("%04s", mobility_table$Ind)
@@ -298,14 +280,10 @@ panel.background = element_rect(fill = "white")
   xlab("Individuals") + 
   ylab("Mobility ratio")
 
-mobilityPlot
-```
-
-```{r}
 ggsave(mobilityPlot, file=paste(VideoName,"_MobilityPlot.jpg",sep=""), width= 9, height=6, dpi=300)
-```
 
-```{r}
+
+######
 displacement_table$Displacement_mm <- as.numeric(displacement_table$Displacement_mm)
 displacement_table$Ind <- as.character(displacement_table$Ind)
 displacement_table$Ind <- sprintf("%04s", displacement_table$Ind)
@@ -331,9 +309,5 @@ panel.background = element_rect(fill = "white")
   xlab("Individuals") + 
   ylab("Total displament (mm)")
 
-displacementPlot
-```
-
-```{r}
 ggsave(displacementPlot, file=paste(VideoName,"_DisplacementPlot.jpg",sep=""), width= 9, height=6, dpi=300)
-```
+
