@@ -1,0 +1,332 @@
+---
+title: "Absolutely Use that beePather"
+author: "Babur Erdem"
+date: '2023-06-10'
+output: html_document
+---
+
+
+```{r}
+library(plotrix) 
+library(dplyr)
+library(ggplot2)
+library(pracma)
+library(writexl)
+```
+
+
+```{r}
+VideoName <- c("23.02.08_control_filtered")
+CornerCoords <- c("ArenaCorners_coordinates.txt")
+start_hour = 0
+start_min = 5
+length_hours = 24.05
+ProcessingFps = 3
+threshold =  .98
+arena_perimeter =175*4     #in mm
+PlotResolution = 5     #in minutes
+ImmobilityThreshold = 1 #Animals would be considered motionless below that speed (mm/s). Default is 0.5 mm/s
+```
+
+
+```{r}
+begin_frame = ProcessingFps*(start_min*60)+(60*60*start_hour)
+end_frame = begin_frame+(ProcessingFps*60*60*length_hours)
+df_bee0 <- read.csv(paste0(VideoName, ".csv", sep = ""), header = T, row.names = NULL, sep="\t")
+
+CorCoord <- read.csv(paste(CornerCoords, sep = ""), header = T, row.names = NULL, sep="\t")
+
+df_bee_begin <- subset(df_bee0, FrameNo > begin_frame)
+df_bee_end <- subset(df_bee_begin, FrameNo < end_frame)
+df_bee <- df_bee_end[,-1]
+df_bee[df_bee==-1] <- NA
+colnames(df_bee) <- colnames(df_bee)[1:ncol(df_bee)] 
+```
+
+```{r}
+# Measurement converter
+
+a = CorCoord$left_bottom_y[CorCoord$VideoName==VideoName]-
+     CorCoord$left_up_y[CorCoord$VideoName==VideoName]
+b = CorCoord$right_bottom_y[CorCoord$VideoName==VideoName] - 
+     CorCoord$right_up_y[CorCoord$VideoName==VideoName]
+c = CorCoord$right_up_x[CorCoord$VideoName==VideoName] - 
+     CorCoord$left_up_x[CorCoord$VideoName==VideoName] 
+d = CorCoord$right_bottom_x[CorCoord$VideoName==VideoName] - 
+     CorCoord$left_bottom_x[CorCoord$VideoName==VideoName] 
+scaleval = CorCoord$scale[CorCoord$VideoName==VideoName]
+ConvFactor <- ((a+b+c+d)*scaleval)/arena_perimeter
+
+```
+
+
+```{r}
+beeNum = ncol(df_bee)/2
+
+#par(mfrow=c(5,5))
+i=1
+while (i <= beeNum){
+beeX <- as.numeric(2*i-1)
+beeY <- as.numeric(2*i)
+bee_df <- data.frame(df_bee[,beeX], df_bee[,beeY])
+bee_df <- na.omit(bee_df)
+
+if ((nrow(bee_df)) < ((nrow(df_bee))*threshold)){
+  bee_df=data.frame(0, 0)
+}
+  
+#bmp(file="pathbee12.bmp",width=6, height=6, units="in", res=300)
+plot((CorCoord$food_x[CorCoord$VideoName==VideoName]*scaleval),
+     (CorCoord$food_y[CorCoord$VideoName==VideoName]*scaleval), type = "p", axes=F, frame = T, xlab = "", ylab = "", main = i, cex=5,col="orange", pch=19, xlim = c(500,4000), ylim = c(400,3000))
+par(new=TRUE)
+plot(bee_df[,1], bee_df[,2], type = "l", axes=F, frame = T, xlab = "", ylab = "", main = i, lwd=.005, xlim = c(500,4000), ylim = c(400,3000))
+par(new=TRUE)
+polygon(x = c((CorCoord$left_bottom_x[CorCoord$VideoName==VideoName]*scaleval),
+               (CorCoord$left_up_x[CorCoord$VideoName==VideoName]*scaleval),
+               (CorCoord$right_up_x[CorCoord$VideoName==VideoName]*scaleval),
+               (CorCoord$right_bottom_x[CorCoord$VideoName==VideoName]*scaleval)),            
+        y = c((CorCoord$left_bottom_y[CorCoord$VideoName==VideoName]*scaleval),
+               (CorCoord$left_up_y[CorCoord$VideoName==VideoName]*scaleval),
+               (CorCoord$right_up_y[CorCoord$VideoName==VideoName]*scaleval),
+               (CorCoord$right_bottom_y[CorCoord$VideoName==VideoName]*scaleval)), 
+                col=NA, lwd=.1, border="blue")
+
+
+
+plot((CorCoord$food_x[CorCoord$VideoName==VideoName]*scaleval),
+     (CorCoord$food_y[CorCoord$VideoName==VideoName]*scaleval), type = "p", axes=F, frame = T, xlab = "", ylab = "", main = i, cex=5,col="orange", pch=19, xlim = c(500,4000), ylim = c(400,3000))
+par(new=TRUE)
+plot(bee_df[,1], bee_df[,2], type = "p", axes=F, frame = T, xlab = "", ylab = "", main = i, cex=.005, pch=1, xlim = c(500,4000), ylim = c(400,3000))
+par(new=TRUE)
+polygon(x = c((CorCoord$left_bottom_x[CorCoord$VideoName==VideoName]*scaleval),
+               (CorCoord$left_up_x[CorCoord$VideoName==VideoName]*scaleval),
+               (CorCoord$right_up_x[CorCoord$VideoName==VideoName]*scaleval),
+               (CorCoord$right_bottom_x[CorCoord$VideoName==VideoName]*scaleval)),             
+        y = c((CorCoord$left_bottom_y[CorCoord$VideoName==VideoName]*scaleval),
+               (CorCoord$left_up_y[CorCoord$VideoName==VideoName]*scaleval),
+               (CorCoord$right_up_y[CorCoord$VideoName==VideoName]*scaleval),
+               (CorCoord$right_bottom_y[CorCoord$VideoName==VideoName]*scaleval)), 
+                col=NA, lwd=.1, border="blue")
+ 
+#dev.off()  
+
+i=i+1
+}
+
+```
+
+```{r}
+dr=1
+DetectRatio <- c()
+while (dr <= ((ncol(df_bee))/2)){
+DetectRat <- 1-(length(df_bee[,(2*dr)][df_bee[,(2*dr)] =="None"]))/(length(df_bee[,(2*dr)]))
+DetectRatio <- append(DetectRatio, DetectRat)
+dr=dr+1
+}
+```
+
+
+```{r}
+plot_table <- data.frame(matrix(ncol=3, nrow = 0))
+average_speed <- c()
+stdev_speed <- c()
+immobility_ratio <- c()
+displacement <- c()
+
+for (jp in (1:((ncol(df_bee))/2))){
+  
+Xp <- df_bee[,(2*jp-1)]
+Yp <- df_bee[,(2*jp)]
+
+
+Xp <- as.numeric(Xp)
+Yp <- as.numeric(Yp)
+
+XpMA <- movavg(Xp, ProcessingFps, "s")
+YpMA <- movavg(Yp, ProcessingFps, "s")  
+  
+Xdp <- diff(XpMA)
+Ydp <- diff(YpMA)
+
+speed_array <- c()
+speed_array <- sqrt((Xdp^2) +(Ydp^2))/ConvFactor
+
+speed_array[speed_array < (ImmobilityThreshold*ProcessingFps)] <- 0
+
+#PlotterBegin
+Mins <- numeric(0)
+Ind <- numeric(0)
+Act <- numeric(0)
+
+min=PlotResolution*60
+pp_begin=1
+pp_end=(ProcessingFps)*PlotResolution*60
+  while (pp_end < length(Xp)-1){
+    
+    sumarr<-sum(speed_array[pp_begin:pp_end], na.rm=T)
+    
+    Act=append(Act,(sumarr))
+    Mins=append(Mins,min)
+    Ind=append(Ind,jp)
+    
+    min=min+PlotResolution
+    pp_begin=pp_begin+(PlotResolution*ProcessingFps*60)
+    pp_end = pp_end+(PlotResolution*ProcessingFps*60)
+     }
+    
+Act<-as.array(Act)
+Mins<-as.array(Mins)
+Ind<-as.array(Ind)
+plot_tabeler<-data.frame(Mins,Ind,Act)
+plot_table <- rbind(plot_table,plot_tabeler)
+#PlotterEnd
+
+
+imm_rat <- length(na.omit(which(speed_array< ImmobilityThreshold)))/length(na.omit((speed_array)))
+immobility_ratio <- append(immobility_ratio, imm_rat)
+
+smean_mm <- ((sum(na.omit(speed_array)))/length(na.omit(speed_array)))*ProcessingFps
+ssd_mm <- sd(speed_array, na.rm = T)*ProcessingFps
+
+disp_mm <- sum(speed_array, na.rm = T) 
+
+average_speed <- append(average_speed,smean_mm)
+stdev_speed <- append(stdev_speed, ssd_mm)
+
+displacement <- append(displacement, disp_mm)
+
+}
+
+mobility_table <- data.frame(c(1:((ncol(df_bee))/2)),(1-immobility_ratio))
+colnames(mobility_table) <- c("Ind", "MobilityRat")
+
+speed_table <- data.frame(c(1:((ncol(df_bee))/2)),average_speed,stdev_speed)
+colnames(speed_table) <- c("Ind", "AvgSpeed_mm/s", "StDevSpeed")
+
+displacement_table <- data.frame(c(1:((ncol(df_bee))/2)),(displacement))
+colnames(displacement_table) <- c("Ind", "Displacement_mm")
+
+```
+
+
+```{r}
+write_xlsx(
+data.frame(
+  
+ID=paste(VideoName,c(1:((ncol(df_bee))/2)),sep = "_"), 
+Group=rep(VideoName,(ncol(df_bee))/2), 
+Disp_mm = displacement,
+Speed_mm=average_speed,
+SpeedSD=stdev_speed, 
+
+MobilityRatio=(1-immobility_ratio),
+
+DetectRatio=DetectRatio),
+
+paste(VideoName,"_OutputData.xlsx"))
+```
+
+
+```{r}
+#plot_tableN<-plot_table[plot_table$Ind==1,]
+
+plot_table$Ind<-as.character(plot_table$Ind)
+plot_table$Ind <- sprintf("%04s", plot_table$Ind)
+
+SpeedPlot <- ggplot(data=plot_table, aes(x=Mins, y=Act, col=Ind)) + 
+ geom_line(alpha=0.5,lwd=1) + 
+ggtitle(paste("Speed plots", VideoName, sep=" "))+
+ theme(
+legend.background = element_rect(colour = NA),  
+legend.box = NULL,
+legend.key = element_rect(fill = "white", colour = "white"),
+legend.title = element_blank(),
+legend.text = element_text( size = 9),
+legend.position = "bottom",
+legend.direction ="horizontal",
+plot.title = element_text(size=13), 
+axis.title.x = element_text(size=11),
+axis.title.y = element_text(size=11),
+panel.grid.major = element_line(color = "lightgrey"),
+panel.grid.minor = element_line(color="lightgrey"),
+panel.background = element_rect(fill = "white")
+) +
+  ylim(min(plot_table$Act),((max(plot_table$Act))*1.1))+
+  xlab("Minutes") + 
+  ylab(paste("Speed (mm/", PlotResolution, "min)", sep = ""))+
+  facet_wrap(~Ind)
+
+SpeedPlot
+```
+
+```{r}
+ggsave(SpeedPlot, file=paste(VideoName,"_SpeedPlots.jpg",sep=""), width= 9, height=6, dpi=300)
+```
+
+
+```{r}
+mobility_table$MobilityRat <- as.numeric(mobility_table$MobilityRat)
+mobility_table$Ind <- as.character(mobility_table$Ind)
+mobility_table$Ind <- sprintf("%04s", mobility_table$Ind)
+
+mobilityPlot <- ggplot(data=mobility_table, aes(x=Ind, y=MobilityRat, fill=Ind))+
+geom_bar(stat="identity")+
+  ggtitle(paste("Mobility ratio plot", VideoName, sep = " "))+
+ theme(
+legend.background = element_rect(colour = NA),  
+legend.box = NULL,
+legend.key = element_rect(fill = "white", colour = "white"),
+legend.title = element_blank(),
+legend.text = element_text( size = 9),
+legend.position = "bottom",
+legend.direction ="horizontal",
+plot.title = element_text(size=13), 
+axis.title.x = element_text(size=11),
+axis.title.y = element_text(size=11),
+panel.grid.major = element_line(color = "lightgrey"),
+panel.grid.minor = element_line(color="lightgrey"),
+panel.background = element_rect(fill = "white")
+) +
+  xlab("Individuals") + 
+  ylab("Mobility ratio")
+
+mobilityPlot
+```
+
+```{r}
+ggsave(mobilityPlot, file=paste(VideoName,"_MobilityPlot.jpg",sep=""), width= 9, height=6, dpi=300)
+```
+
+
+```{r}
+displacement_table$Displacement_mm <- as.numeric(displacement_table$Displacement_mm)
+displacement_table$Ind <- as.character(displacement_table$Ind)
+displacement_table$Ind <- sprintf("%04s", displacement_table$Ind)
+
+displacementPlot <- ggplot(data=displacement_table, aes(x=Ind, y=Displacement_mm, fill=Ind))+
+geom_bar(stat="identity")+
+  ggtitle(paste("Displacement plot", VideoName, sep = " "))+
+ theme(
+legend.background = element_rect(colour = NA),  
+legend.box = NULL,
+legend.key = element_rect(fill = "white", colour = "white"),
+legend.title = element_blank(),
+legend.text = element_text( size = 9),
+legend.position = "bottom",
+legend.direction ="horizontal",
+plot.title = element_text(size=13), 
+axis.title.x = element_text(size=11),
+axis.title.y = element_text(size=11),
+panel.grid.major = element_line(color = "lightgrey"),
+panel.grid.minor = element_line(color="lightgrey"),
+panel.background = element_rect(fill = "white")
+) +
+  xlab("Individuals") + 
+  ylab("Total displament (mm)")
+
+displacementPlot
+```
+
+```{r}
+ggsave(displacementPlot, file=paste(VideoName,"_DisplacementPlot.jpg",sep=""), width= 9, height=6, dpi=300)
+```
